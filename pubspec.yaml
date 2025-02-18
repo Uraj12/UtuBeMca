@@ -1,0 +1,48 @@
+name: utube
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.6.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  http: ^0.13.6
+  cupertino_icons: ^1.0.8
+  font_awesome_flutter: ^10.7.0
+  video_player: ^2.4.5
+  file_picker: ^8.0.3
+  speech_to_text: ^6.1.1 # Use the latest version
+  image_picker: ^0.8.4+4
+
+
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/utube.png
+    - assets/short_video_3.mp4
+    - assets/6.jpeg
+    - assets/1.jpeg
+    - assets/2.jpeg
+    - assets/3.jpeg
+    - assets/4.jpeg
+    - assets/5.jpeg
+    - assets/short_video_1.mp4
+    - assets/short_video_2.mp4
+    - assets/short_video_3.mp4
+    - assets/short_video_4.mp4
+    - assets/short_video_5.mp4
+    - assets/short_video_6.mp4
+    - assets/short_video_7.mp4

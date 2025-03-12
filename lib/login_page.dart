@@ -3,10 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:utube/home_page.dart';
 
+import 'SharedPref.dart';
+
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
+
+
   _LoginPageState createState() => _LoginPageState();
 }
 
@@ -34,6 +38,14 @@ class _LoginPageState extends State<LoginPage> {
         var data = jsonDecode(response.body);
         if (data["status"] == "success") {
           _showSuccessAlert(); // Show success alert before redirection
+
+          // Store Enrollment Number
+          await SharedPrefService.setString('enrollmentNumber', enrollment);
+
+          // ✅ Await to get the stored value
+          String? storedEnrollment = await SharedPrefService.getString('enrollmentNumber');
+
+          print('Stored Enrollment: $storedEnrollment'); // Debug
         } else {
           _showAlert("Invalid credentials! Please try again.");
         }

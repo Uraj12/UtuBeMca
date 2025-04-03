@@ -698,7 +698,7 @@ class _HomePageState extends State<HomePage> {
                         videoId: video['video_id'],
                         videoUrl: video['video_url'],
                         channelName: '',
-                        channelLogo: '',
+                        channelLogo: '', videoTitle: '', videoDescription: '', title: null,
                       ),
                     ),
                   );
@@ -959,7 +959,7 @@ class _VideoThumbnailWidgetState extends State<VideoThumbnailWidget> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => VideoPlayerScreen(videoUrl: widget.videoUrl, channelName: '', channelLogo: '', videoId: null,),
+            builder: (context) => VideoPlayerScreen(videoUrl: widget.videoUrl, channelName: '', channelLogo: '', videoId: null, videoTitle: '', videoDescription: '', title: null,),
           ),
         );
       },

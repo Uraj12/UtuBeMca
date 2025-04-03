@@ -33,7 +33,7 @@ class MyApp extends StatelessWidget {
       routes: {
         '/': (context) => const LoginPage(),
         '/login': (context) => const HomePage(),
-        '/videoPlayer': (context) => VideoPlayerScreen(videoUrl: '', channelName: '', channelLogo: '', videoId: null,),
+        '/videoPlayer': (context) => VideoPlayerScreen(videoUrl: '', channelName: '', channelLogo: '', videoId: null, videoTitle: '', videoDescription: '', title: null,),
 
       },
     );

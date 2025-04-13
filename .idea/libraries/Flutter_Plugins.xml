@@ -39,6 +39,11 @@
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/share_plus-7.2.2" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/wakelock_plus-1.2.10" />
       <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/path_provider_android-2.2.16" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/tflite_flutter-0.10.4" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/camera_web-0.3.5" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/camera_avfoundation-0.9.18+13" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/camera_android-0.10.10+2" />
+      <root url="file://$USER_HOME$/.pub-cache/hosted/pub.dev/camera-0.10.6" />
     </CLASSES>
     <JAVADOC />
     <SOURCES />

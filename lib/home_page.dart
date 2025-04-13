@@ -41,8 +41,7 @@ class _HomePageState extends State<HomePage> {
   List videos = [];
   bool isLoading = true;
   Map<String, String> _thumbnailCache = {};
-
-
+  String? enrollmentNumber;
 
 
   void main() {
@@ -66,22 +65,23 @@ class _HomePageState extends State<HomePage> {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        print("API Data: $data"); // Check what the API returns
+        print("API Data: $data");
 
         final List videos = data['videos'];
 
         List<Map<String, dynamic>> updatedVideos = videos.map((video) {
+          print("Video Item: $video"); // Debug log
           return {
-            'video_id': video['video_id'], // ✅ Extract video_id
+            'video_id': video['video_id'],
             'video_name': video['video_name'] ?? 'Unknown Video',
             'video_url': 'http://127.0.0.1:8000${video['video_url']}',
+            'enrollment': video['enrollment'], // Optional use
           };
         }).toList();
 
         setState(() {
           _videoData = updatedVideos;
-          _filteredVideos = updatedVideos; // ✅ Ensure UI updates
-
+          _filteredVideos = updatedVideos; // ✅ Show all videos
           isLoading = false;
         });
       } else {
@@ -162,7 +162,17 @@ class _HomePageState extends State<HomePage> {
     return null;
   }
 
+  Future<void> _loadEnrollment() async {
+    String? enrollment = await SharedPrefService.getString('enrollmentNumber');
+    setState(() {
+      enrollmentNumber = enrollment;
+    });
 
+    if (enrollmentNumber == null) {
+      // Optional: handle null case
+      print("Enrollment not found in SharedPreferences");
+    }
+  }
   void _updateSearchQuery(String query) {
     setState(() {
       _searchQuery = query.toLowerCase();
@@ -178,6 +188,8 @@ class _HomePageState extends State<HomePage> {
   void _uploadVideo(BuildContext context) async {
     TextEditingController titleController = TextEditingController();
     TextEditingController descriptionController = TextEditingController();
+    TextEditingController enrollmentController = TextEditingController();
+
     File? selectedFile;
     Uint8List? selectedFileBytes; // Store file bytes for Web
     String selectedFileName = "";
@@ -296,12 +308,26 @@ class _HomePageState extends State<HomePage> {
                         ),
                       ),
                       ElevatedButton(
-                        onPressed: () {
+                        onPressed: () async {
                           print("Selected File Path: ${selectedFile?.path ?? 'No file selected'}");
                           print("Selected File Bytes: ${selectedFileBytes != null ? 'File loaded in memory (Web)' : 'No file bytes'}");
 
-                          if (selectedFile != null || selectedFileBytes != null) {
-                            _uploadVideoToServer(selectedFile, selectedFileBytes, titleController.text, descriptionController.text);
+                          if (selectedFileBytes != null) {
+                            // ✅ Get enrollment number from SharedPref
+                            String? enrollment = await SharedPrefService.getString('enrollmentNumber');
+
+                            if (enrollment != null) {
+                              _uploadVideoToServer(
+                                selectedFileBytes,
+                                titleController.text,
+                                descriptionController.text,
+                                enrollment,
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text("Enrollment number not found. Please login again.")),
+                              );
+                            }
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text("Please select a video first")),
@@ -313,7 +339,8 @@ class _HomePageState extends State<HomePage> {
                           backgroundColor: Colors.red,
                           foregroundColor: Colors.white,
                         ),
-                      ),
+                      )
+
                     ],
                   ),
 
@@ -338,6 +365,7 @@ class _HomePageState extends State<HomePage> {
   // Generate video description by making API call
   Future<void> _generateDescription(
       File? file, Uint8List? selectedFileBytes, TextEditingController descriptionController) async {
+
     if (file == null && selectedFileBytes == null) {
       print("Error: No file selected");
       return;
@@ -358,10 +386,9 @@ class _HomePageState extends State<HomePage> {
         String responseBody = await response.stream.bytesToString();
         final responseData = json.decode(responseBody);
 
-        String hindiSummary = responseData['hindi_summary'] ?? 'No summary generated';
+        String fullDescription = responseData['formatted_description'] ?? 'No description generated';
+        descriptionController.text = fullDescription;
 
-        // Ensure UI is updated safely
-        descriptionController.text = hindiSummary;
       } else {
         throw Exception('Failed to generate transcription');
       }
@@ -371,48 +398,59 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Upload video to the server with progress
-  Future<void> _uploadVideoToServer(File? videoFile, Uint8List? videoBytes, String title, String description) async {
-    String url = 'http://127.0.0.1:8000/upload_video/';
-    var request = http.MultipartRequest('POST', Uri.parse(url));
+Future<void> _uploadVideoToServer(
+      Uint8List? videoBytes,
+      String title,
+      String description,
+      String enrollment, // Optional field
+      ) async {
+    if (videoBytes == null) {
+      print("❌ No video selected");
+      return;
+    }
 
+    final url = Uri.parse('http://127.0.0.1:8000/upload_video/');
+    final request = http.MultipartRequest('POST', url);
+
+    // Add form fields
     request.fields['video_name'] = title;
-    request.fields['description'] = description; // ✅ Ensure description is included
+    request.fields['description'] = description;
+    request.fields['enrollment'] = enrollment; // Optional
+
+    // Add video file
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'video_file', // ✅ Must match Django view key
+        videoBytes,
+        filename: "$title.mp4",
+        contentType: MediaType('video', 'mp4'),
+      ),
+    );
 
     try {
-      if (videoFile != null) {
-        print("Uploading Video from File: ${videoFile.path}");
-        request.files.add(await http.MultipartFile.fromPath('video_file', videoFile.path));
-      } else if (videoBytes != null) {
-        print("Uploading Video from Bytes (Web)");
-        request.files.add(http.MultipartFile.fromBytes(
-          'video_file',
-          videoBytes,
-          filename: "$title.mp4",
-          contentType: MediaType('video', 'mp4'),
-        ));
-      } else {
-        throw Exception("No file selected for upload");
-      }
-
-      var streamedResponse = await request.send();
-      var response = await http.Response.fromStream(streamedResponse);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
+        print("✅ Upload Successful");
+        print("Response: ${response.body}");
+
+        // ✅ Show success snackbar
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Video uploaded successfully!")),
+          SnackBar(
+            content: Text("Video uploaded successfully! 🎉"),
+            backgroundColor: Colors.green,
+          ),
         );
-        print("Server Response: ${response.body}");
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to upload video")),
-        );
-        print("Error: ${response.statusCode} - ${response.body}");
+
+        // Optional: clear the form
+
+      }
+      else {
+        print("❌ Upload Failed: ${response.statusCode} - ${response.body}");
       }
     } catch (e) {
-      print("Upload Error: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error uploading video: $e")),
-      );
+      print("❌ Error: $e");
     }
   }
 
@@ -725,9 +763,10 @@ class _HomePageState extends State<HomePage> {
                   ),
                   SizedBox(height: 2),
                   Text(
-                    "Channel Name",
+                    "Enrollment: ${video['enrollment'] ?? 'Unknown'}",
                     style: TextStyle(color: Colors.grey, fontSize: 12),
                   ),
+
                 ],
               ),
             );
@@ -864,10 +903,12 @@ class _HomePageState extends State<HomePage> {
                 arguments: {
                   'videoId': video['video_id'],
                   'videoUrl': video['video_url'],
-                  'channelName': '',
-                  'channelLogo': '',
+                  'videoTitle': video['video_name'] ?? '', // ✅ Important
+                  'channelName': video['channel_name'] ?? '',
+                  'channelLogo': video['channel_logo'] ?? '',
                 },
               );
+
             }
           },
         );

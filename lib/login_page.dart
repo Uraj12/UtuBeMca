@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:utube/home_page.dart';
+import 'package:utube/admin_dashboard.dart'; // ✅ Add this at the top
 
 import 'SharedPref.dart';
 
@@ -19,12 +20,22 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _enrollmentController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
+  final String adminEnrollment = "admin";
+  final String adminPassword = "admin1";
+
 
   Future<void> _login() async {
     if (_formKey.currentState!.validate()) {
       String enrollment = _enrollmentController.text.trim();
       String password = _passwordController.text.trim();
 
+      // 🔐 Static Admin Login
+      if (enrollment == 'admin' && password == 'admin1') {
+        _showSuccessAlert(isAdmin: true);
+        return;
+      }
+
+      // 🔗 Normal API Login
       var url = Uri.parse("http://127.0.0.1:8000/login/");
       var response = await http.post(
         url,
@@ -37,14 +48,14 @@ class _LoginPageState extends State<LoginPage> {
       if (response.statusCode == 200) {
         var data = jsonDecode(response.body);
         if (data["status"] == "success") {
-          _showSuccessAlert(); // Show success alert before redirection
+          _showSuccessAlert(isAdmin: false); // Show success alert before redirection
 
           // Store Enrollment Number
           await SharedPrefService.setString('enrollmentNumber', enrollment);
+          await SharedPrefService.setString('password', password);
 
-          // ✅ Await to get the stored value
+
           String? storedEnrollment = await SharedPrefService.getString('enrollmentNumber');
-
           print('Stored Enrollment: $storedEnrollment'); // Debug
         } else {
           _showAlert("Invalid credentials! Please try again.");
@@ -55,19 +66,21 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _showSuccessAlert() {
+  void _showSuccessAlert({required bool isAdmin}) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text("Login Successful"),
-        content: const Text("Welcome! Redirecting to Home..."),
+        content: Text(isAdmin ? "Welcome Admin! Redirecting to Dashboard..." : "Welcome! Redirecting to Home..."),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context); // Close alert
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => const HomePage()),
+                MaterialPageRoute(
+                  builder: (context) => isAdmin ? AdminDashboard() : const HomePage(),
+                ),
               );
             },
             child: const Text("OK"),

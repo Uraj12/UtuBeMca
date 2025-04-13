@@ -9,6 +9,8 @@ import 'package:chewie/chewie.dart';
 import "package:share_plus/share_plus.dart";
 import 'dart:typed_data';
 
+import 'SharedPref.dart';
+
 class VideoPlayerScreen extends StatefulWidget {
   final String videoUrl;
   final String videoTitle;
@@ -32,15 +34,57 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   bool isLoadingSummary = false;
   List<Map<String, dynamic>> suggestedVideos = [];
   bool isLoadingSuggestions = true;
+  late String videoTitle = "No Title"; // default
+  final TextEditingController _commentController = TextEditingController(); // Comment controller
+  List<String> comments = [];
+  late int videoId;
+  late String videoUrl;
+  late String channelName;
+  late String channelLogo;
+
+  bool _isArgsLoaded = false;
 
   @override
   void initState() {
     super.initState();
     fetchSuggestedVideos();
     initializePlayer(widget.videoUrl);
+
+
     print("Received Video Title: ${widget.videoTitle}");
   }
 
+  @override
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (!_isArgsLoaded) {
+      final routeArgs = ModalRoute.of(context)?.settings.arguments;
+      if (routeArgs != null && routeArgs is Map<String, dynamic>) {
+        videoId = routeArgs['videoId'];
+        videoTitle = routeArgs['videoTitle'] ?? 'No Title';
+        videoUrl = routeArgs['videoUrl'] ?? '';
+        channelName = routeArgs['channelName'] ?? '';
+        channelLogo = routeArgs['channelLogo'] ?? '';
+
+        initializePlayer(videoUrl);
+      } else {
+        print("⚠️ Route arguments are null or in unexpected format.");
+      }
+
+      _isArgsLoaded = true;
+    }
+  }
+
+  void _addComment() {
+    if (_commentController.text.isNotEmpty) {
+      setState(() {
+        comments.add(_commentController.text); // Add comment to the list
+        _commentController.clear(); // Clear input field
+      });
+    }
+  }
   Future<void> initializePlayer(String url) async {
     _controller = VideoPlayerController.networkUrl(
       Uri.parse(url),
@@ -111,7 +155,14 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
   }
   void likeVideo(int videoId, bool isLiked) async {
     final url = Uri.parse("http://127.0.0.1:8000/like/");
-    final String enrollment = "202404104610003"; // Fetch dynamically in a real app
+
+    // Fetch dynamically stored enrollment number
+    final String? enrollment = await SharedPrefService.getString('enrollmentNumber');
+
+    if (enrollment == null || enrollment.isEmpty) {
+      print("❌ Enrollment number not found!");
+      return;
+    }
 
     try {
       final response = await http.post(
@@ -120,7 +171,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         body: jsonEncode({
           "enrollment": enrollment,
           "video_id": videoId,
-          "status": isLiked ? "unlike" : "like"  // Send "unlike" instead of null
+          "status": isLiked ? "unlike" : "like"
         }),
       );
 
@@ -129,7 +180,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          isLiked = !isLiked; // Toggle like state
+          isLiked = !isLiked;
         });
       } else {
         print("Error: ${data['error']}");
@@ -204,13 +255,16 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
         setState(() {
           suggestedVideos = videos.map<Map<String, dynamic>>((video) {
             return {
-              "videoUrl": video["video_url"] ?? "",
-              "title": video["video_name"] ?? "No Title",
+              "videoUrl": video["video_url"]?.toString() ?? "",
+              "title": video["video_name"]?.toString() ?? "No Title",
               "watchCount": video["watch_count"] ?? 0,
               "likeCount": video["like_count"] ?? 0,
-              "thumbnail": video["thumbnail"]?.isNotEmpty == true
-                  ? video["thumbnail"]
+              "thumbnail": video["thumbnail"]?.toString().isNotEmpty == true
+                  ? video["thumbnail"].toString()
                   : "https://via.placeholder.com/100x60?text=No+Image",
+              "description": video["description"]?.toString() ?? "",
+              "channelName": video["channel_name"]?.toString() ?? "",
+              "channelLogo": video["channel_logo"]?.toString() ?? "",
             };
           }).toList();
           isLoadingSuggestions = false; // ✅ Stop loading after fetching
@@ -240,7 +294,31 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
     }
   }
 
+  Future<void> _addCommentofvideo() async {
+    final commentText = _commentController.text.trim();
+    if (commentText.isEmpty) return;
 
+    final String? enrollment = await SharedPrefService.getString('enrollmentNumber');
+
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:8000/add_comment'), // or your actual URL
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        "enrollment": enrollment,
+        "video_id": videoId, // 👈 directly using the class variable
+        "comment": commentText,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      setState(() {
+        comments.add(commentText);
+        _commentController.clear();
+      });
+    } else {
+      print("Failed to add comment: ${response.body}");
+    }
+  }
   void checkVideoUrl(String url) async {
     try {
       final response = await http.get(Uri.parse(url));
@@ -257,6 +335,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: isFullScreen
@@ -277,6 +356,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
             flex: 3,
             child: Padding(
               padding: const EdgeInsets.only(left: 15, right: 20),
+              child: SingleChildScrollView(
               child: Column(
                 children: [
                   // Video Player
@@ -298,7 +378,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          widget.videoTitle.isNotEmpty ? widget.videoTitle : "No Title",
+                          videoTitle.isNotEmpty ? videoTitle : "No Title",
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -309,6 +389,7 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                         ),
                       ),
                       const SizedBox(width: 10),
+
                       // Like Button
                       IconButton(
                         icon: AnimatedSwitcher(
@@ -328,11 +409,12 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                           likeVideo(1, isLiked); // Call API when user clicks like
                         },
                       ),
+
                       // Share Button
                       IconButton(
                         icon: const Icon(Icons.share, color: Colors.white),
                         onPressed: () {
-                          Share.share(widget.videoUrl); // Share video URL
+                          Share.share(widget.videoUrl);
                         },
                       ),
                     ],
@@ -349,11 +431,59 @@ class _VideoPlayerScreenState extends State<VideoPlayerScreen> {
                       child: Text("Share Summary"),
                     ),
                   ],
+                  const SizedBox(height: 16),
+                  // Comments Section
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      "Comments (${comments.length})", // Display comment count
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _commentController,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: "Add a comment...",
+                      hintStyle: TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Colors.white10,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: Icon(Icons.send, color: Colors.blue),
+                        onPressed: _addComment,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: NeverScrollableScrollPhysics(),
+                    itemCount: comments.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        leading: Icon(Icons.account_circle, color: Colors.white),
+                        title: Text(comments[index], style: TextStyle(color: Colors.white)),
+                      );
+                    },
+                  ),
                 ],
+              ),
               ),
             ),
           ),
+
           // Suggested videos section
+
+
           Expanded(
             child: isLoadingSuggestions
                 ? const Center(child: CircularProgressIndicator())
